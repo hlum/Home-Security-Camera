@@ -1,6 +1,7 @@
 #include<WiFi.h>
 #include<HTTPClient.h>
 #include<secrets.h>
+#include<connectToWifi.h>
 
 const String endPoint = "https://24cm0138.main.jp/esp32/detector.php";
 HTTPClient http;
