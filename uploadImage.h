@@ -2,12 +2,14 @@
 #define UPLOAD_IMAGE_H
 
 #include <WiFiClientSecure.h>
+#include<secrets.h>
 
 
 uint8_t* downloadImage(const char* url, int* outLength) {
   WiFiClient client;
   HTTPClient http;
   http.begin(client, url);
+  http.addHeader("Authorization", API_KEY);
 
   int httpCode = http.GET();
   if (httpCode != 200) {
