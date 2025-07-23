@@ -14,11 +14,20 @@ const char* uploadEndPoint = "https://24cm0138.main.jp/esp32/upload.php";
 const String endPoint = "https://24cm0138.main.jp/esp32/detector.php";
 HTTPClient http;
 
+
+#define LED_PIN 2
+
 #define BOOT_BUTTON_PIN 0
 
-float initDistance = 0;
-const float detectionThreshold = 15.0; // cm
+
+#define PIR_PIN 32      // PIR sensor connected to GPIO 32
+
+unsigned long motionTimeout = 5000;   // Time to keep output on (ms)
+unsigned long motionStartTime = 0;    // When motion was last detected
+
 bool detectionEnabled = true;
+
+
 bool lastButtonState = HIGH;
 unsigned long lastDebounceTime = 0;
 const unsigned long debounceDelay = 200;
@@ -28,6 +37,12 @@ void setup() {
   Serial.begin(115200);
   connectToWifi(ssidSchool, passwordSchool);
 
+  // Add server connectivity test
+  testServerConnection();
+  
+  pinMode(PIR_PIN, INPUT);
+
+  pinMode(LED_PIN, OUTPUT);
   pinMode(BOOT_BUTTON_PIN, INPUT_PULLUP); // BOOT is active LOW
 
   // Initialize the camera pin
@@ -38,48 +53,49 @@ void setup() {
   Serial.println("Camera initialized.");
 
   delay(1000); // Wait for sensor to stabilize
-
-  initDistance = getDistance(ULTRASONIC_PIN);
-  Serial.print("Starting distance = ");
-  Serial.println(initDistance);
 }
 
 
 
 void loop() {
-  // Read the button
+  // // Read the button
   int buttonState = digitalRead(BOOT_BUTTON_PIN);
 
-  // // Detect falling edge with debounce
-  // if (buttonState == LOW && lastButtonState == HIGH && (millis() - lastDebounceTime > debounceDelay)) {
-  //   detectionEnabled = !detectionEnabled;
-  //   lastDebounceTime = millis();
-
-  //   Serial.print("Detection toggled: ");
-  //   Serial.println(detectionEnabled ? "ON" : "OFF");
-  // }
-
-  // lastButtonState = buttonState;
-
-  // if (detectionEnabled) {
-  //   float distance = getDistance(ULTRASONIC_PIN);
-  //   if (distance > 2 && distance < initDistance - detectionThreshold) {
-  //     Serial.println("🚶 Person detected!");
-  //     captureAndUpload();
-  //     delay(5000);
-  //   }
-  // }
-
-  // delay(100); // keep loop responsive
-
-  if(buttonState == LOW && (millis() - lastDebounceTime) > debounceDelay) {
-    Serial.println("Btn pressed.");
-    captureAndUpload();
+  // Detect falling edge with debounce
+  if (buttonState == LOW && lastButtonState == HIGH && (millis() - lastDebounceTime > debounceDelay)) {
+    detectionEnabled = !detectionEnabled;
     lastDebounceTime = millis();
-    delay(1000);
+
+    Serial.print("Detection toggled: ");
+    Serial.println(detectionEnabled ? "ON" : "OFF");
   }
 
-  delay(100);
+  lastButtonState = buttonState;
+
+  if (detectionEnabled) {
+    if (motionDetected()) {
+      digitalWrite(LED_PIN, HIGH);
+      Serial.println("🚶 Person detected!");
+      captureAndUpload();
+    }
+  }
+
+  delay(100); // keep loop responsive
+  digitalWrite(LED_PIN, LOW);
+}
+
+
+bool motionDetected() {
+  int motionDetected = digitalRead(PIR_PIN);
+
+  if (motionDetected == HIGH) {
+    if (millis() - motionStartTime >= motionTimeout) {
+      motionStartTime = millis();  // Record the time motion started
+      return true;
+    }
+  }
+
+  return false;
 }
 
 
@@ -97,16 +113,28 @@ void captureAndUpload() {
   }
 }
 
-
-
-void uploadData() {
-  http.begin(endPoint);
-  http.addHeader("Authorization", API_KEY);
-
-  int httpCode = http.GET();
+void testServerConnection() {
+  Serial.println("Testing server connectivity...");
   
-  String payload = http.getString();
-  // Serial.println(payload);
-
-  http.end();
+  // Test basic HTTP connection
+  WiFiClient testClient;
+  if (testClient.connect("24cm0138.main.jp", 80)) {
+    Serial.println("✅ HTTP (port 80) connection successful");
+    testClient.stop();
+  } else {
+    Serial.println("❌ HTTP (port 80) connection failed");
+  }
+  
+  // Test HTTPS connection
+  WiFiClientSecure httpsClient;
+  httpsClient.setInsecure();
+  if (httpsClient.connect("24cm0138.main.jp", 443)) {
+    Serial.println("✅ HTTPS (port 443) connection successful");
+    httpsClient.stop();
+  } else {
+    Serial.println("❌ HTTPS (port 443) connection failed");
+  }
 }
+
+
+
