@@ -48,7 +48,7 @@ bool initCamera() {
 
   // Frame size options: FRAMESIZE_QVGA, FRAMESIZE_VGA, etc.
   config.frame_size = FRAMESIZE_VGA;
-  config.jpeg_quality = 10;  // Lower is better quality
+  config.jpeg_quality = 15;  // Lower is better quality
   config.fb_count = 1;
 
   esp_err_t err = esp_camera_init(&config);
@@ -59,30 +59,31 @@ bool initCamera() {
   return true;
 }
 
-// === CAPTURE IMAGE METHOD ===
-uint8_t* captureImage(size_t* lengthOut) {
+uint8_t* captureImage(size_t* imageLength) {
+  // Clear any stale frames from the buffer
   camera_fb_t* fb = esp_camera_fb_get();
+  if (fb) {
+    esp_camera_fb_return(fb);  // Discard the old frame
+  }
+  
+  // Small delay to ensure fresh frame
+  delay(100);
+  
+  // Now capture the fresh frame
+  fb = esp_camera_fb_get();
   if (!fb) {
     Serial.println("Camera capture failed");
     return nullptr;
   }
-
-  // Set output length
-  if (lengthOut != nullptr) {
-    *lengthOut = fb->len;
+  
+  *imageLength = fb->len;
+  uint8_t* imageData = (uint8_t*)malloc(fb->len);
+  if (imageData) {
+    memcpy(imageData, fb->buf, fb->len);
   }
-
-  uint8_t* copy = (uint8_t*)malloc(fb->len);
-  if (!copy) {
-    Serial.println("Failed to allocate memory for image copy");
-    esp_camera_fb_return(fb);
-    return nullptr;
-  }
-
-  memcpy(copy, fb->buf, fb->len);
-  esp_camera_fb_return(fb);  // Free original frame buffer
-
-  return copy;  // You must free this in the calling code
+  
+  esp_camera_fb_return(fb);
+  return imageData;
 }
 
 #endif

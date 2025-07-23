@@ -76,7 +76,7 @@ void loop() {
     Serial.println("Btn pressed.");
     captureAndUpload();
     lastDebounceTime = millis();
-    delay(5000);
+    delay(1000);
   }
 
   delay(100);
@@ -89,7 +89,8 @@ void captureAndUpload() {
 
   if (imageData != nullptr) {
     Serial.println("Image captured successfully.");
-    postImageToServer(uploadEndPoint, imageData, imageLength);
+    Serial.printf("📦 Image size: %d bytes\n", imageLength);
+    postImageToServerWithRetry(uploadEndPoint, imageData, imageLength, 5);
     free(imageData);
   } else {
     Serial.println("❌ Image capture failed");
@@ -105,7 +106,7 @@ void uploadData() {
   int httpCode = http.GET();
   
   String payload = http.getString();
-  Serial.println(payload);
+  // Serial.println(payload);
 
   http.end();
 }
